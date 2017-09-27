@@ -26,6 +26,7 @@ namespace HelloRS
             // Instantiate and initialize the SenseManager
             senseManager = PXCMSenseManager.CreateInstance();
             senseManager.EnableStream(PXCMCapture.StreamType.STREAM_TYPE_COLOR, 640, 480, 30);
+            senseManager.EnableStream(PXCMCapture.StreamType.STREAM_TYPE_DEPTH, 640, 480, 30);
             senseManager.EnableHand();
             senseManager.Init();
 
@@ -57,9 +58,15 @@ namespace HelloRS
                 Bitmap colorBitmap;
                 PXCMImage.ImageData colorData;
 
+                Bitmap depthBitmap;
+                PXCMImage.ImageData depthData;
+
                 // Get color image data
                 sample.color.AcquireAccess(PXCMImage.Access.ACCESS_READ, PXCMImage.PixelFormat.PIXEL_FORMAT_RGB24, out colorData);
                 colorBitmap = colorData.ToBitmap(0, sample.color.info.width, sample.color.info.height);
+
+                sample.depth.AcquireAccess(PXCMImage.Access.ACCESS_READ, PXCMImage.PixelFormat.PIXEL_FORMAT_DEPTH, out depthData);
+                depthBitmap = depthData.ToBitmap(0, sample.depth.info.width, sample.depth.info.height);
 
                 /*
                 // Retrieve gesture data
@@ -75,31 +82,46 @@ namespace HelloRS
                 */
 
                 // Update the user interface
-                UpdateUI(colorBitmap);
+                UpdateUI(colorBitmap, depthBitmap);
 
                 // Release the frame
                 if (handData != null) handData.Dispose();
                 colorBitmap.Dispose();
+                depthBitmap.Dispose();
                 sample.color.ReleaseAccess(colorData);
+                sample.depth.ReleaseAccess(depthData);
                 senseManager.ReleaseFrame();
             }
         }
 
-        private void UpdateUI(Bitmap bitmap)
+        private void UpdateUI(Bitmap colorBitmap, Bitmap depthBitmap)
         {
             this.Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Normal, new Action(delegate ()
             {
-                if (bitmap != null)
+                if (colorBitmap != null)
                 {
                     // Mirror the color stream Image control
-                    image1.RenderTransformOrigin = new System.Windows.Point(0.5, 0.5);
+                    imageRGB.RenderTransformOrigin = new System.Windows.Point(0.5, 0.5);
                     ScaleTransform mainTransform = new ScaleTransform();
                     mainTransform.ScaleX = -1;
                     mainTransform.ScaleY = 1;
-                    image1.RenderTransform = mainTransform;
+                    imageRGB.RenderTransform = mainTransform;
 
                     // Display the color stream
-                    image1.Source = ConvertBitmap.BitmapToBitmapSource(bitmap);
+                    imageRGB.Source = ConvertBitmap.BitmapToBitmapSource(colorBitmap);
+                }
+
+                if (depthBitmap != null)
+                {
+                    // Mirror the color stream Image control
+                    imageDepth.RenderTransformOrigin = new System.Windows.Point(0.5, 0.5);
+                    ScaleTransform mainTransform = new ScaleTransform();
+                    mainTransform.ScaleX = -1;
+                    mainTransform.ScaleY = 1;
+                    imageDepth.RenderTransform = mainTransform;
+
+                    // Display the color stream
+                    imageDepth.Source = ConvertBitmap.BitmapToBitmapSource(depthBitmap);
                 }
             }));
         }
