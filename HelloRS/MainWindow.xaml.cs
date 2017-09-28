@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Threading;
 using System.Drawing;
+using System.Windows.Media.Imaging;
 
 namespace HelloRS
 {
@@ -11,127 +12,73 @@ namespace HelloRS
     /// </summary>
     public partial class MainWindow : Window
     {
-        private Thread processingThread;
-        private PXCMSenseManager senseManager;
-        private PXCMHandModule hand;
-        private PXCMHandConfiguration handConfig;
-        private PXCMHandData handData;
-        private PXCMHandData.GestureData gestureData;
-       
 
         public MainWindow()
         {
             InitializeComponent();
-           
-            // Instantiate and initialize the SenseManager
-            senseManager = PXCMSenseManager.CreateInstance();
-            senseManager.EnableStream(PXCMCapture.StreamType.STREAM_TYPE_COLOR, 640, 480, 30);
-            senseManager.EnableStream(PXCMCapture.StreamType.STREAM_TYPE_DEPTH, 640, 480, 30);
-            senseManager.EnableHand();
-            senseManager.Init();
-
-            /*
-            // Configure the Hand Module
-            hand = senseManager.QueryHand();
-            handConfig = hand.CreateActiveConfiguration();
-            handConfig.EnableGesture("wave");
-            handConfig.EnableAllAlerts();
-            handConfig.ApplyChanges();
-            */
 
         }
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
-            processingThread.Abort();
-            if (handData != null) handData.Dispose();
-            handConfig.Dispose();
-            senseManager.Dispose();
+
         }
 
-        private void ProcessingThread()
+
+        private void Button_Click(object sender,
+                             RoutedEventArgs e)
         {
-            // Start AcquireFrame/ReleaseFrame loop
-            while (senseManager.AcquireFrame(true) >= pxcmStatus.PXCM_STATUS_NO_ERROR)
-            {
-                PXCMCapture.Sample sample = senseManager.QuerySample();
-                Bitmap colorBitmap;
-                PXCMImage.ImageData colorData;
+            PXCMSession session =
+                             PXCMSession.CreateInstance();
+            PXCMSession.ImplVersion version =
+                                   session.QueryVersion();
+            textBox1.Text = version.major.ToString() + "."
+                               + version.minor.ToString();
 
-                Bitmap depthBitmap;
-                PXCMImage.ImageData depthData;
 
-                // Get color image data
-                sample.color.AcquireAccess(PXCMImage.Access.ACCESS_READ, PXCMImage.PixelFormat.PIXEL_FORMAT_RGB24, out colorData);
-                colorBitmap = colorData.ToBitmap(0, sample.color.info.width, sample.color.info.height);
+            PXCMSenseManager sm =
+                             session.CreateSenseManager();
+            sm.EnableStream(
+                 PXCMCapture.StreamType.STREAM_TYPE_COLOR,
+                 0, 0);
+            sm.EnableStream(
+                 PXCMCapture.StreamType.STREAM_TYPE_DEPTH,
+                 0, 0);
+            sm.Init();
 
-                sample.depth.AcquireAccess(PXCMImage.Access.ACCESS_READ, PXCMImage.PixelFormat.PIXEL_FORMAT_DEPTH, out depthData);
-                depthBitmap = depthData.ToBitmap(0, sample.depth.info.width, sample.depth.info.height);
+            pxcmStatus status = sm.AcquireFrame(true);
+            PXCMCapture.Sample sample = sm.QuerySample();
 
-                /*
-                // Retrieve gesture data
-                hand = senseManager.QueryHand();
+            PXCMImage image = sample.color;
+            PXCMImage dimage = sample.depth;
 
-                if (hand != null)
-                {
-                    // Retrieve the most recent processed data
-                    handData = hand.CreateOutput();
-                    handData.Update();
-                    handWaving = handData.IsGestureFired("wave", out gestureData);
-                }
-                */
+            PXCMImage.ImageData data;
+            image.AcquireAccess(
+               PXCMImage.Access.ACCESS_READ,
+               PXCMImage.PixelFormat.PIXEL_FORMAT_RGB32,
+               out data);
+            WriteableBitmap wbm = data.ToWritableBitmap(0,
+                                  image.info.width,
+                                  image.info.height,
+                                  96.0, 96.0);
 
-                // Update the user interface
-                UpdateUI(colorBitmap, depthBitmap);
-
-                // Release the frame
-                if (handData != null) handData.Dispose();
-                colorBitmap.Dispose();
-                depthBitmap.Dispose();
-                sample.color.ReleaseAccess(colorData);
-                sample.depth.ReleaseAccess(depthData);
-                senseManager.ReleaseFrame();
-            }
-        }
-
-        private void UpdateUI(Bitmap colorBitmap, Bitmap depthBitmap)
-        {
-            this.Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Normal, new Action(delegate ()
-            {
-                if (colorBitmap != null)
-                {
-                    // Mirror the color stream Image control
-                    imageRGB.RenderTransformOrigin = new System.Windows.Point(0.5, 0.5);
-                    ScaleTransform mainTransform = new ScaleTransform();
-                    mainTransform.ScaleX = -1;
-                    mainTransform.ScaleY = 1;
-                    imageRGB.RenderTransform = mainTransform;
-
-                    // Display the color stream
-                    imageRGB.Source = ConvertBitmap.BitmapToBitmapSource(colorBitmap);
-                }
-
-                if (depthBitmap != null)
-                {
-                    // Mirror the color stream Image control
-                    imageDepth.RenderTransformOrigin = new System.Windows.Point(0.5, 0.5);
-                    ScaleTransform mainTransform = new ScaleTransform();
-                    mainTransform.ScaleX = -1;
-                    mainTransform.ScaleY = 1;
-                    imageDepth.RenderTransform = mainTransform;
-
-                    // Display the color stream
-                    imageDepth.Source = ConvertBitmap.BitmapToBitmapSource(depthBitmap);
-                }
-            }));
-        }
-
-        private void button_Click(object sender, RoutedEventArgs e)
-        {
-            // Start the worker thread
-            processingThread = new Thread(new ThreadStart(ProcessingThread));
-            processingThread.Start();
-
+            PXCMImage.ImageData data2;
+            dimage.AcquireAccess(
+              PXCMImage.Access.ACCESS_READ,
+              PXCMImage.PixelFormat.PIXEL_FORMAT_DEPTH_RAW,
+              out data2);
+            WriteableBitmap wbm2 = data2.ToWritableBitmap(
+                                   0,
+                                   dimage.info.width,
+                                   dimage.info.height,
+                                   96.0, 96.0);
+            imageRGB.Source = wbm;
+            imageDepth.Source = wbm2;
+            image.ReleaseAccess(data);
+            image.ReleaseAccess(data2);
+            sm.ReleaseFrame();
+            sm.Close();
+            session.Dispose();
         }
     }
 }
