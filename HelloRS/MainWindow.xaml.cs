@@ -26,7 +26,8 @@ namespace HelloRS
             // Setupt Eventhandler 
             handler = new PXCMSenseManager.Handler();
             
-            // Get instance of SenseManager 
+            // Get instance of SenseManager
+            //
             session = PXCMSession.CreateInstance();
 
         }
